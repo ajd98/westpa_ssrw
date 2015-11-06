@@ -1,0 +1,10 @@
+Requirements for w_steadystate_reweight.py
+
+- Overall scheme:
+  - For each input simulation, load flux matrix.
+    - ``flux matrix``: A square, nonnegative, N*N matrix where each element
+                       represents probability flow between two ``bins``.
+                       In this context, each element F_{i,j} (where ``i`` is 
+                       the column index, and ``j`` is the row index) represents 
+                       flux calculated from bin i, into bin j.
+    - Load flux matrix from output of w_postanalysis_matrix.py
