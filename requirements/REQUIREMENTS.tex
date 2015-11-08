@@ -1,3 +1,4 @@
+% Header, document info, and imports
 \title{Requirements for w\_steadystate\_reweight.py}
 \author{
         Alex DeGrave \\
@@ -7,18 +8,40 @@
 \documentclass[10pt]{article}
 \usepackage{fancyvrb}
 \usepackage[margin=0.5in]{geometry}
+\usepackage{amsfonts}
 
+% Start the main part of the document
 \begin{document}
 \maketitle
 
+% Verbatim preserves spacing and gives Courier font.
 \begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
 - Overall scheme:
+  - Parse user inputs
+    - Parse command line flags
+      - get location of YAML file specifying input locations
+      - find which iterations to include in the analysis (first and last 
+        iterations)
+      - find whether to calculate a single value or an evolution of values
+      - get the averaging scheme to use, if any (blocked averaging, cumulative
+        averaging) 
+    - Parse YAML file
+      for each simulation, load the:
+      1) file path to the w\_postanalysis\_matrix output
+      2) file path to the w\_assign output
+      3) bins (or states) that were subject to recycling during the course of 
+         the simulation.
+        - Load keys as "bins", or "states", which should give lists as values
+        - Ultimately, we need a list of bin indices.  If the user specifies
+          state indices, we need to get the corresponding bin indices from the
+          w\_assign output files.
+          >>> where in the w\_assign output is this located? 'state\_map'? 
   - For each input simulation, load flux matrix.
     - "flux matrix": A square, nonnegative, N*N matrix $F$ where each element
                      represents probability flow between two "bins". In this 
-                     context, each element $F_{i,j}$ (where "i" is the column 
-                     index, and "j" is the row index) represents flux calculated
-                     from bin i, into bin j.
+                     context, each element $F_{i,j}$ (where $i$ is the column 
+                     index, and $j$ is the row index) represents flux calculated
+                     from bin $i$, into bin $j$.
                      >>>DOUBLE CHECK THIS
 
     - Load flux matrix from output of w\_postanalysis\_matrix.py
@@ -37,7 +60,7 @@
                         where each element represents the COUNT of transition 
                         events between two bins.  In this context, each element
                         $C_{i,j}$ represents the number of transitions oberved 
-                        from bin i, into bin j, during a given iteration.
+                        from bin $i$, into bin $j$, during a given iteration.
         For example, given some integer index $k$, with $0 \le k<len(cols)$, we
         have:
              flux\_matrix[rows[k], cols[k]] = flux[k]
@@ -53,7 +76,6 @@
                            $\tau$. 
                            >>>WHAT IS THE DEFAULT LAG TIME?
 
->>>>>>>>>>>>>>>>>>>>>>>>>> EDIT BELOW.  THIS IS WRONG. <<<<<<<<<<<<<<<<<<<<<<<<<
     - In the case of a simulation without recycling conditions, a transition
       matrix may be constructed from a flux matrix by row-normalizing. Such a
       transition matrix would depend only upon the events observed within a 
@@ -62,25 +84,65 @@
       stabilize the estimate of the transition probabilites, as observations 
       from a single iteration may be insufficient to obtain reasonable
       statistics.  One may imagine multiple methods for averaging.
-      1) Average the count matrices.  Given a collection of N*N count matrices
-              $\{C^1, C^2, ..., C^n\}$
-         the following is an estimator for the flux per iteration:
-              $<C> = \frac{\Sigma_{k=1}^{n} C^k}{n}$
-         The transition matrix may then be esimated by 
-              $T_{i,j} = \frac{<C>_{i,j}}{\Sigma_{m=1}^{N} <C>_{i,m}}$
-      2) Average the transition matrices.  Given a collection of N*N 
-         count matrices 
-              $\{C1, C2, ..., Cn\}$
-         we first row-normalize each count matrix as 
-              $T^k_{i,j} = \frac{C^k_{i,j}}{\Sigma_{m=1}^{N} C^k_{i,m}}$
+      1) Average the count matrices.  Given a collection of $N*N$ flux matrices
+              $\{F^{(1)}, F^{(2)}, ..., F^{(n)}\}$
+         the following is an estimator for the flux per $\tau$:
+              >>>> WHAT TAU DOES w\_postanalysis\_matrix OUTPUT?
+              \(<F> = \frac{\sum_{k=1}^{n} F^{(k)}}{n}\)
+         In the most direct sense, a flux is calculated by summing probability 
+         flow between some time $t$ and some discrete lag-time later, 
+         $t+\tau$. Given the $N*1$ vector $P$ where each $P_i$ represents the 
+         probability in bin $i$ at the first timestep $t$ in building the flux 
+         matrix, the transition matrix may then be esimated by 
+              $T_{i,j} = \frac{<F>_{i,j}}{P_i}$
+              >>> If w\_postanalysis\_matrix calculates the flux on a 
+                  sub-WE-iteration basis, does it also store probability on a 
+                  sub-WE-iteration basis? 
+      2) Average the transition matrices.  Given a collection of $N*N$ 
+         flux matrices 
+              $\{F^{(1)}, F^{(2)}, ..., F^{(n)}\}$
+         we first normalize each row $F_i$ by the total probability in bin $i$
+         at the first timestep $t$ in building the flux matrix, we first 
+         row-normalize each flux matrix as 
+              $T^{(k)}_{i,j} = \frac{F^{(k)}_{i,j}}{P_i}$
          for k=1,2,...,n.  We may then obtain an estimate of the transition
          matrix $<T>$ as:
-              $<T> = \Sigma_{k=1}^{n} T^k$
-       Either formulation may be valid.  Method (1) places more "emphasis" on 
-       high-weight transitions, in that large flux values contribute more to 
-       the estimate <T> than do low-weight transitions. Method (2) places equal
-       emphasis on each transition observation, regardless of the associated
-       weight.
+              $<T> = \frac{\sum_{k=1}^{n} T^{(k)}}{P_i}$
+         Either formulation may be valid.  Method (1) places more "emphasis" on 
+         high-weight transitions, in that large flux values contribute more to 
+         the estimate <T> than do low-weight transitions. Method (2) places equal
+         emphasis on each transition observation, regardless of the associated
+         weight.
+
+    - In the case of a simulation with recycling conditions, construction of a 
+      transition matrix is not so straightforward.  Consider a set of n
+      simulations indxed by $k=1,2,\dots ,n$. Let $F^{(k)}$ be a raw, $N*N$ 
+      flux matrix calculated by observing probability flux between bins during 
+      the period betweenn time $t$ and time $t+\tau$. We may first obtain a
+      transition matrix for each simulation $k=1,2,\dots ,n$ as follows: 
+              $T^{(k)}_{i,j} = \frac{F^{(k)}_{i,j}}{P_i}$
+      Let $B^{(k)} \subset \mathbb{N}$, $|B|<N$ be a collection of bin indices 
+      corresponding to those bins from which trajectory walkers are recycled 
+      during the course of the simulation.  Because trajectory walkers are 
+      continually removed from bins $i{\in}B^{(k)}$, it is unlikely to achieve 
+      sufficient sampling of transition events out of bins $i{\in}B^{(k)}$ to reasonably 
+      estimate any transition rate $T^{(k)}_{i,j}$ where $i\in B^{(k)}$, 
+      $j=1,2,\dots ,N$. Thus, such transition rates are not allowed to
+      contribute to the estimate.
+      An estimate for the transition matrix is then:
+              $<T_{i,j}> = \frac{\sum_{k{\in}I_i} T^{(k)}_{i,j}}{I_i^\#}$ 
+          where:
+              $I_i := \{k{\in}\{1,\dots,n\}: B^{(k)}{\not}{\owns}i\}$
+      and $I_i^#$ denotes the number of elements in $I_i$.
+    - Apply averaging.  Averaging could, in theory, take place at the
+      transition matrix level (i.e., find the mean of all transition matrices),
+      or could occur at the level of populations (average the stationary
+      distributions calculated from a sequence of transition matrices; more on 
+      this below), or for rates.  Since this script will include transition 
+      matrices in its output, I think it makes sense to average at the
+      transition matrix level.  This is also consistent with 
+      w\_postanalysis\_reweight.
+
 
 \end{Verbatim}
 \end{document}
