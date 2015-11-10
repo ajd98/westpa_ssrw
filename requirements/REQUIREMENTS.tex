@@ -9,6 +9,7 @@
 \usepackage{fancyvrb}
 \usepackage[margin=0.5in]{geometry}
 \usepackage{amsfonts}
+\usepackage{amsmath}
 
 % Start the main part of the document
 \begin{document}
@@ -66,7 +67,7 @@
              flux\_matrix[rows[k], cols[k]] = flux[k]
              count\_matrix[rows[k], cols[k]] = obs[k]
 
-  - For each input, build a transition matrix (one per input).
+  - For each input, build a transition matrix 
     - "transition matrix": For this purpose, a transition matrix is a square,
                            nonnegative, N*N matrix $T$ where each row sums to 
                            one. More formally, it is a RIGHT STOCHASTIC matrix.  
@@ -84,17 +85,36 @@
       stabilize the estimate of the transition probabilites, as observations 
       from a single iteration may be insufficient to obtain reasonable
       statistics.  One may imagine multiple methods for averaging.
-      1) Average the count matrices.  Given a collection of $N*N$ flux matrices
+      1) Average the flux matrices.  Given a collection of $N*N$ flux matrices
               $\{F^{(1)}, F^{(2)}, ..., F^{(n)}\}$
          the following is an estimator for the flux per $\tau$:
               >>>> WHAT TAU DOES w\_postanalysis\_matrix OUTPUT?
-              \(<F> = \frac{\sum_{k=1}^{n} F^{(k)}}{n}\)
-         In the most direct sense, a flux is calculated by summing probability 
+\end{Verbatim}
+
+              \[ <F> = \frac{\sum_{k=1}^{n} F^{(k)}}{n} \]
+
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
+         NOTE: It probably make more sense to restrict this sum for each row to
+         only those simulations for which the bin in which a given transition
+         would originate is occupied, ie:
+\end{Verbatim}
+
+              \[ <F_{i,j}> = \frac{\sum_{k\in D_{i}} F^{(k)}_{i,j}}{D_{i}^\#} \]
+        
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
+         where $D_i := \{ k\in \{1,2,\dots,n\}: P^{(k)}_i \neq 0}.
+
+         In the most direct sense, a flux matrix is calculated by summing probability 
          flow between some time $t$ and some discrete lag-time later, 
-         $t+\tau$. Given the $N*1$ vector $P$ where each $P_i$ represents the 
-         probability in bin $i$ at the first timestep $t$ in building the flux 
-         matrix, the transition matrix may then be esimated by 
-              $T_{i,j} = \frac{<F>_{i,j}}{P_i}$
+         $t+\tau$. Given the $N*1$ vector $P^{(k)}$ where each $P{(k)}_i$ represents the 
+         probability in bin $i$ of simulation $k$ at the first timestep $t$ in 
+         building the flux matrix, the transition matrix may then be esimated by 
+              $<T_{i,j}> = \frac{<F>_{i,j}}{P_i}$
+\end{Verbatim}
+               
+               \[<T_{i,j}> = \frac{<F_{i,j}>}{\sum_{k=1}^n P^{(k)}_i} \] 
+
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
               >>> If w\_postanalysis\_matrix calculates the flux on a 
                   sub-WE-iteration basis, does it also store probability on a 
                   sub-WE-iteration basis? 
@@ -105,9 +125,23 @@
          at the first timestep $t$ in building the flux matrix, we first 
          row-normalize each flux matrix as 
               $T^{(k)}_{i,j} = \frac{F^{(k)}_{i,j}}{P_i}$
+\end{Verbatim}
+               
+               \[T^{(k)}_{i,j} = \begin{cases} 
+                                   \frac{F^{(k)}_{i,j}}{P_i} & P_i \neq 0 \\
+                                   NAN & P_i=0 
+                                 \end{cases}
+                              \]
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
          for k=1,2,...,n.  We may then obtain an estimate of the transition
          matrix $<T>$ as:
-              $<T> = \frac{\sum_{k=1}^{n} T^{(k)}}{P_i}$
+\end{Verbatim}
+              \[<T_{i,j}> = \frac{\sum_{k\in D_{i,j}} T^{(k)}}{D_{i,j}^\#} \]
+              
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
+         where $D_{i,j} = \{k\in \{1,2,\dots,n\}: T^{(k)}_{i,j} \neq NAN\}$, and $D_{i,j}$
+         represents the number of elements in $D$. Intuitively, we include 
+
          Either formulation may be valid.  Method (1) places more "emphasis" on 
          high-weight transitions, in that large flux values contribute more to 
          the estimate <T> than do low-weight transitions. Method (2) places equal
