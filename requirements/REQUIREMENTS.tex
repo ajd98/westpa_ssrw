@@ -10,6 +10,7 @@
 \usepackage[margin=0.5in]{geometry}
 \usepackage{amsfonts}
 \usepackage{amsmath}
+\newcommand{\matr}[1]{\mathbf{#1}}
 
 % Start the main part of the document
 \begin{document}
@@ -102,7 +103,7 @@
               \[ <F_{i,j}> = \frac{\sum_{k\in D_{i}} F^{(k)}_{i,j}}{D_{i}^\#} \]
         
 \begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
-         where $D_i := \{ k\in \{1,2,\dots,n\}: P^{(k)}_i \neq 0}.
+         where $D_i := \{ k\in \{1,2,\dots,n\}: P^{(k)}_i \neq 0\}.
 
          In the most direct sense, a flux matrix is calculated by summing probability 
          flow between some time $t$ and some discrete lag-time later, 
@@ -176,6 +177,21 @@
       matrices in its output, I think it makes sense to average at the
       transition matrix level.  This is also consistent with 
       w\_postanalysis\_reweight.
+
+    - In general, precede as follows.  Let $T=\{t_0, t_0+\tau, t_0+2\tau,\dots,\t_0+m\tau\}$ 
+      be a set of time points.  Let $K$ be a set of simulation indices,
+      describing independent simulations.  Let $B=\{1,2,\dots,N\}$ be a set of
+      bin indices.  Let $F^{(k)}_{i,j}(t,\tau,B)$ be the flux observed in simulation $k$
+      from bin $i\in B$ to bin $j\in B$ during the period from time $t$ to 
+      time $t+\tau$.  Let $P^{(k)}_{i,j}(t,B)$ be the probability in bin $i\in B$
+      at time $t$.  Then an estimate for the transition rate matrix is given by
+
+\end{Verbatim}
+
+\[<\matr{T}_{i,j}> = \frac{\sum_{t\in T}\sum_{k\in K} \Phi^{(k)}(t,\tau,B)}{\sum_{t\in T}\sum_{k\in K} \mathbf{1}_{D^{(k)}(t,B)}(i)} \]
+              
+\begin{Verbatim}[commandchars=\\\{\},codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
+
 
 
 \end{Verbatim}
