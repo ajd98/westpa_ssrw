@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#   i!/usr/bin/env python
 # Import statements, unedited from w_postanalysis_reweight.py
 # Go back and delete those not needed, eventually
 from __future__ import print_function, division; __metaclass__ = type
@@ -11,12 +11,12 @@ import h5py
 
 from collections import Counter
 
-import westpa
-from west.data_manager import weight_dtype, n_iter_dtype
-from westtools import (WESTTool, WESTDataReader, IterRangeSelection,
-                       ProgressIndicatorComponent)
-from westpa import h5io
-from westtools.dtypes import iter_block_ci_dtype as ci_dtype
+#import westpa
+#from west.data_manager import weight_dtype, n_iter_dtype
+#from westtools import (WESTTool, WESTDataReader, IterRangeSelection,
+#                       ProgressIndicatorComponent)
+#from westpa import h5io
+#from westtools.dtypes import iter_block_ci_dtype as ci_dtype
 
 log = logging.getLogger('westtools.w_postanalysis_reweight')
 
@@ -95,7 +95,7 @@ def steadystate_solve(K):
     # np.linalg.eig gives right eigenvectors of K_mod.T
     # This is the same as the left eigenvectors of K_mod 
     # For left stochastic matrix, columns sum to 1, and we left multiply a 
-    # probabilty vecotr by the matrix to obtain a new probabilty distribution.
+    # probabilty vector by the matrix to obtain a new probabilty distribution.
     # In summary, we want LEFT eigenvectors for a RIGHT stochastic matrix; since
     # np.linalg.eig gives RIGHT eigenvectors, we pass it the transpose of K_mod.
     eigvals, eigvecs = np.linalg.eig(K_mod.T)
@@ -126,7 +126,7 @@ def steadystate_solve(K):
     return bin_prob
 
 def get_transmat_and_obsmat_sum(fluxmatH5_list, start_iter, stop_iter, nbins, 
-                                recycling_bin_list=None
+                                recycling_bin_list=None):
     '''
     Find the sum of transition matrices from a set of simulations, for a given 
     set of timepoints. 
@@ -162,7 +162,8 @@ def get_transmat_and_obsmat_sum(fluxmatH5_list, start_iter, stop_iter, nbins,
     '''
     
     # Array for holding the running sum of transition matrix
-    transmat_sum = np.nan((nbins, nbins), np.float64)
+    transmat_sum = np.empty((nbins, nbins), np.float64)
+    transmat_sum.fill(np.nan)
     temp_array = np.zeros((nbins, nbins), np.float64)
     # Array for holding the count of elements added to the transmat_sum 
     obsmat_sum = np.zeros((nbins, nbins), np.int64)
@@ -181,7 +182,7 @@ def get_transmat_and_obsmat_sum(fluxmatH5_list, start_iter, stop_iter, nbins,
     # Iterate over all the iterations and all the simulations
     for iiter in xrange(start_iter, stop_iter):
         for isim, fluxmatH5 in enumerate(fluxmatH5_list):
-            iter_group = h5file['iterations/iter_{:08d}'.format(iiter)]
+            iter_group = fluxmatH5['iterations/iter_{:08d}'.format(iiter)]
             # Reset the temporary matrix to all zeros.
             temp_array[...] = 0 
             # Load flux matrix from the HDF5 file. The matrix is stored based
@@ -193,27 +194,40 @@ def get_transmat_and_obsmat_sum(fluxmatH5_list, start_iter, stop_iter, nbins,
             flux_data = iter_group['flux']
             # Reconstruct the (dense) matrix.
             temp_array[row_idxs, col_idxs] = flux_data
+            if iiter == 35:
+                print(temp_array[0])
             # Divide each row of the matrix by the population in corresponding
             # bin.  This gives ``NaN`` for values where the population of the 
             # corresponding bin is zero. 
             # CHECK THAT THIS IS DOING WHAT IT IS SUPPOSED TO!!!
-            temp_array /= pops_list[isim][iiter-start_iter][:, np.newaxis]
+           
+            temp_array = np.divide(temp_array, 
+                                   pops_list[isim][iiter-start_iter][:,np.newaxis]
+                                   )
             # Set rows corresponding to bins involved in recycling to NaN, as 
             # well. 
             # CHECK THAT THIS IS DOING WHAT IT IS SUPPOSED TO!!!
-            temp_array[recycling_bin_list[isim]] = np.nan 
+            if recycling_bin_list is not None:
+                if recycling_bin_list[isim] is not None:
+                    temp_array[recycling_bin_list[isim]] = np.nan 
             # Make a mask that lets through the values that are not 
             # ``Not a Number``
             good_value_mask = np.isfinite(temp_array) 
             # Add the good values to the running sum
             # We could also experiment with weighting elements by the number of
             # observations here!
-            transmat_sum = np.nansum(transmat_sum, temp_array[good_value_mask])
+            # CHECK THIS!!!
+            if np.any(np.isinf(temp_array[0])):
+                print('\n %d'%iiter)
+                print(temp_array[0])
+                print(pops_list[isim][iiter-start_iter])
+            transmat_sum = np.nansum(np.dstack((transmat_sum, temp_array)),
+                                     axis=2)
             obsmat_sum += good_value_mask
     return transmat_sum, obsmat_sum
 
 def get_average_transition_mat(fluxmatH5_list, start_iter, stop_iter, nbins, 
-                               recycling_bin_list=None) 
+                               recycling_bin_list=None): 
     '''
     Find an average transition matrix from a set of simulations, for a given 
     set of timepoints. Return a numpy matrix representing the average 
@@ -244,12 +258,12 @@ def get_average_transition_mat(fluxmatH5_list, start_iter, stop_iter, nbins,
                                                            )
     
     # Finally, get the average transition matrix and return it.
-    transmat = transmat_sum /= obsmat_sum
+    transmat = numpy.divide(transmat_sum, obsmat_sum)
     return transmat
             
 def transmat_cumulative_mean_generator(fluxmatH5_list, start_iter, stop_iter, 
                                        step_iter, nbins, 
-                                       recycling_bin_list=None)
+                                       recycling_bin_list=None):
     '''
     Generator for fast calculations of cumulatively averaged transition matrix 
     estimates.
@@ -283,10 +297,10 @@ def transmat_cumulative_mean_generator(fluxmatH5_list, start_iter, stop_iter,
         raise ValueError
     transmat_sum, obsmat_sum = get_transmat_and_obsmat_sum(
                                         fluxmatH5_list, start_iter, 
-                                        start_iter+step_iter, nbins 
+                                        start_iter+step_iter, nbins, 
                                         recycling_bin_list=recycling_bin_list
                                                            )
-    transmat = transmat_sum /= obsmat_sum
+    transmat = numpy.divide(transmat_sum, obsmat_sum)
     # Yield the mean transition matrix from the first averaging window.
     yield transmat
     
@@ -296,13 +310,13 @@ def transmat_cumulative_mean_generator(fluxmatH5_list, start_iter, stop_iter,
         temp_transmat_sum, temp_obsmat_sum = get_transmat_and_obsmat_sum(
                                         fluxmatH5_list, 
                                         cumsum_stop_iter-step_iter, 
-                                        cumsum_stop_iter, nbins 
+                                        cumsum_stop_iter, nbins, 
                                         recycling_bin_list=recycling_bin_list
                                                                          )
         transmat_sum = np.nansum(transmat_sum, temp_transmat_sum)
         obsmat_sum += temp_obsmat_sum
 
-        transmat = transmat_sum /= obsmat_sum
+        transmat = numpy.divide(transmat_sum, obsmat_sum)
         # Yield the mean transition matrix from the  averaging window.
         yield transmat
         
